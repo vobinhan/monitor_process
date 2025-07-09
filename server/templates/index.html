@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Process Monitor</title></head>
+<body>
+    <h1>Process Overview</h1>
+    {% for client, processes in clients.items() %}
+        <h2>{{ client }}</h2>
+        <table border="1">
+            <tr><th>PID</th><th>Name</th><th>CPU</th></tr>
+            {% for p in processes %}
+                <tr>
+                    <td>{{ p.pid }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.cpu }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endfor %}
+</body>
+</html>
+
