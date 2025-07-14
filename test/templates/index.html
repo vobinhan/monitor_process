@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Multi-Client Process Monitor</title>
+  <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .tab-btn { margin-right: 5px; padding: 5px 10px; cursor: pointer; }
+    .active { background: #007bff; color: white; }
+    .badge { padding: 3px 8px; border-radius: 5px; font-size: 12px; margin-left: 5px; }
+    .online { background-color: #28a745; color: white; }
+    .offline { background-color: #dc3545; color: white; }
+    table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
+    button.kill-btn { padding: 2px 8px; background: #ff5555; color: white; border: none; border-radius: 3px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Multi-Client Process Monitor</h2>
+
+  <div id="tabs"></div>
+  <br>
+  <input type="text" id="search" placeholder="Search PID or Name..." onkeyup="filterProcesses()">
+
+  <div id="process-table"></div>
+
+  <script>
+    const socket = io();
+    let clientData = {};
+    let currentClient = null;
+    let clientStatuses = {};
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+    });
+
+    socket.on('process_data', (data) => {
+      const client_id = data.client_id;
+      clientData[client_id] = data.processes;
+
+      if (!document.getElementById(client_id)) {
+        const btn = document.createElement('button');
+        btn.textContent = client_id;
+        btn.className = 'tab-btn';
+        btn.id = client_id;
+        btn.onclick = () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentClient = client_id;
+          renderTable();
+        };
+        document.getElementById('tabs').appendChild(btn);
+        if (!currentClient) {
+          btn.click();
+        }
+      }
+
+      if (client_id === currentClient) {
+        renderTable();
+      }
+    });
+
+    socket.on('status_update', (statuses) => {
+      clientStatuses = statuses;
+      updateBadges();
+    });
+
+    socket.on('kill_result', (data) => {
+      alert(`Killed process ${data.pid} on ${data.client_id} - ${data.result}`);
+    });
+
+    function updateBadges() {
+      for (let client in clientStatuses) {
+        const btn = document.getElementById(client);
+        if (btn) {
+          let existing = btn.querySelector('.badge');
+          if (existing) existing.remove();
+
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + (clientStatuses[client] === 'online' ? 'online' : 'offline');
+          badge.innerText = clientStatuses[client] === 'online' ? '🟢 Online' : '🔴 Offline';
+          btn.appendChild(badge);
+        }
+      }
+    }
+
+    function renderTable() {
+      const tableDiv = document.getElementById('process-table');
+      const processes = clientData[currentClient] || [];
+      let html = '<table><tr><th>PID</th><th>Name</th><th>CPU (%)</th><th>Memory (MB)</th><th>Action</th></tr>';
+      for (let p of processes) {
+        html += `<tr>
+          <td>${p.pid}</td>
+          <td>${p.name}</td>
+          <td>${p.cpu}</td>
+          <td>${p.memory_mb}</td>
+          <td><button class="kill-btn" onclick="killProcess('${p.pid}')">Kill</button></td>
+        </tr>`;
+      }
+      html += '</table>';
+      tableDiv.innerHTML = html;
+    }
+
+    function killProcess(pid) {
+      if (confirm(`Are you sure to kill PID ${pid}?`)) {
+        socket.emit('kill_process', { client_id: currentClient, pid: pid });
+      }
+    }
+
+    function filterProcesses() {
+    const keyword = document.getElementById("search").value.toLowerCase();
+    const processes = clientData[currentClient] || [];
+    const tableDiv = document.getElementById('process-table');
+    let html = '<table><tr><th>PID</th><th>Name</th><th>CPU (%)</th><th>Memory (MB)</th><th>Action</th></tr>';
+    
+    // Hàm lọc process
+    for (let p of processes) {
+        if (p.pid.includes(keyword) || p.name.toLowerCase().includes(keyword)) {
+        html += `<tr>
+            <td>${p.pid}</td>
+            <td>${p.name}</td>
+            <td>${p.cpu}</td>
+            <td>${p.memory_mb}</td>
+            <td><button class="kill-btn" onclick="killProcess('${p.pid}')">Kill</button></td>
+        </tr>`;
+        }
+    }
+    html += '</table>';
+    tableDiv.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

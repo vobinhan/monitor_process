@@ -1,0 +1,6 @@
+{
+    "clients": {
+        "client1": "password1",
+        "client2": "password2"
+    }
+}

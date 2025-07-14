@@ -1,21 +1,181 @@
 <!DOCTYPE html>
 <html>
-<head><title>Process Monitor</title></head>
+<head>
+  <title>Multi-Client Process Monitor</title>
+  <script src="https://cdn.socket.io/3.1.3/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .tab-btn { margin-right: 5px; padding: 5px 10px; cursor: pointer; position: relative; }
+    .active { background: #007bff; color: white; }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .online { background-color: #28a745; color: white; }
+    .offline { background-color: #dc3545; color: white; }
+    table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; font-size: 13px; }
+    button.kill-btn { padding: 2px 8px; background: #ff5555; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
 <body>
-    <h1>Process Overview</h1>
-    {% for client, processes in clients.items() %}
-        <h2>{{ client }}</h2>
-        <table border="1">
-            <tr><th>PID</th><th>Name</th><th>CPU</th></tr>
-            {% for p in processes %}
-                <tr>
-                    <td>{{ p.pid }}</td>
-                    <td>{{ p.name }}</td>
-                    <td>{{ p.cpu }}</td>
-                </tr>
-            {% endfor %}
-        </table>
-    {% endfor %}
+  <h2>Multi-Client Process Monitor</h2>
+
+  <div id="tabs"></div>
+  <br>
+  <input type="text" id="search" placeholder="Search PID / Name..." onkeyup="filterProcesses()">
+  <div id="process-table"></div>
+
+  <script>
+    const socket = io();
+    let clientData = {};
+    let currentClient = null;
+    let clientStatuses = {};
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+    });
+
+    socket.on('process_data', (data) => {
+      const client_id = data.client_id;
+      clientData[client_id] = data.processes;
+
+      if (!document.getElementById(client_id)) {
+        const btn = document.createElement('button');
+        btn.textContent = client_id;
+        btn.className = 'tab-btn';
+        btn.id = client_id;
+        btn.onclick = () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentClient = client_id;
+          renderTable();
+        };
+        document.getElementById('tabs').appendChild(btn);
+        updateBadges();
+      }
+
+      if (!currentClient) {
+        currentClient = client_id;
+        document.getElementById(client_id).classList.add("active");
+      }
+
+      if (client_id === currentClient) {
+        renderTable();
+      }
+
+      updateBadges(); // cập nhật trạng thái mỗi khi có dữ liệu mới
+    });
+
+    socket.on('status_update', (statuses) => {
+      console.log("Received statuses:", statuses);
+      clientStatuses = statuses;
+      updateBadges();
+    });
+
+    socket.on('kill_result', (data) => {
+      alert(`Killed process ${data.pid} on ${data.client_id} - ${data.result}`);
+    });
+
+    function updateBadges() {
+      for (let client in clientStatuses) {
+        const btn = document.getElementById(client);
+        if (btn) {
+          let oldBadge = btn.querySelector('.badge');
+          if (oldBadge) oldBadge.remove();
+
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + (clientStatuses[client] === 'online' ? 'online' : 'offline');
+          badge.textContent = clientStatuses[client] === 'online' ? '🟢 Online' : '🔴 Offline';
+
+          btn.appendChild(badge);
+        }
+      }
+    }
+
+    function renderTable() {
+      const tableDiv = document.getElementById('process-table');
+      const processes = clientData[currentClient] || [];
+
+      let html = `
+        <table>
+          <tr>
+            <th>PID</th><th>UID</th><th>User</th><th>Name</th><th>CPU (%)</th><th>Mem (%)</th><th>State</th>
+            <th>Start Time</th><th>Elapsed</th><th>CPU Time</th><th>Action</th>
+          </tr>
+      `;
+
+      const sorted = [...processes].sort((a, b) => {
+        if (a.state === 'R' && b.state !== 'R') return -1;
+        if (a.state !== 'R' && b.state === 'R') return 1;
+        return 0;
+      });
+
+      for (let p of sorted) {
+        html += `<tr>
+          <td>${p.pid}</td>
+          <td>${p.uid || ""}</td>
+          <td>${p.user || ""}</td>
+          <td>${p.name}</td>
+          <td>${p.cpu}</td>
+          <td>${p.memory_mb}</td>
+          <td>${p.state}</td>
+          <td>${p.start_time || ""}</td>
+          <td>${p.elapsed || ""}</td>
+          <td>${p.cpu_time || ""}</td>
+          <td><button class="kill-btn" onclick="killProcess('${p.pid}')">Kill</button></td>
+        </tr>`;
+      }
+
+      html += '</table>';
+      tableDiv.innerHTML = html;
+    }
+
+    function killProcess(pid) {
+      if (confirm(`Are you sure to kill PID ${pid}?`)) {
+        socket.emit('kill_process', { client_id: currentClient, pid: pid });
+      }
+    }
+
+    function filterProcesses() {
+      const keyword = document.getElementById("search").value.toLowerCase();
+      const processes = clientData[currentClient] || [];
+      const tableDiv = document.getElementById('process-table');
+
+      let html = `
+        <table>
+          <tr>
+            <th>PID</th><th>UID</th><th>User</th><th>Name</th><th>CPU (%)</th><th>Mem (%)</th><th>State</th>
+            <th>Start Time</th><th>Elapsed</th><th>CPU Time</th><th>Action</th>
+          </tr>
+      `;
+
+      for (let p of processes) {
+        if (
+          p.pid.includes(keyword) ||
+          (p.name && p.name.toLowerCase().includes(keyword))
+        ) {
+          html += `<tr>
+            <td>${p.pid}</td>
+            <td>${p.uid || ""}</td>
+            <td>${p.user || ""}</td>
+            <td>${p.name}</td>
+            <td>${p.cpu}</td>
+            <td>${p.memory_mb}</td>
+            <td>${p.state}</td>
+            <td>${p.start_time || ""}</td>
+            <td>${p.elapsed || ""}</td>
+            <td>${p.cpu_time || ""}</td>
+            <td><button class="kill-btn" onclick="killProcess('${p.pid}')">Kill</button></td>
+          </tr>`;
+        }
+      }
+
+      html += '</table>';
+      tableDiv.innerHTML = html;
+    }
+  </script>
 </body>
 </html>
-

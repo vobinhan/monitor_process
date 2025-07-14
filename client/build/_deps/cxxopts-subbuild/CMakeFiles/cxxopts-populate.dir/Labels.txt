@@ -1,0 +1,14 @@
+# Target labels
+ cxxopts-populate
+# Source files and their labels
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/CMakeFiles/cxxopts-populate
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/CMakeFiles/cxxopts-populate.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/CMakeFiles/cxxopts-populate-complete.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-build.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-configure.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-download.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-install.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-mkdir.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-patch.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-test.rule
+/root/monitor_process/client/build/_deps/cxxopts-subbuild/cxxopts-populate-prefix/src/cxxopts-populate-stamp/cxxopts-populate-update.rule

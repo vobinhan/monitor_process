@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/client.dir/main.cpp.o CMakeFiles/client.dir/tcp_client.cpp.o CMakeFiles/client.dir/process.cpp.o -o client  /usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0 
