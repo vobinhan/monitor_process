@@ -1,32 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Multi-Client Process Monitor</title>
   <script src="https://cdn.socket.io/3.1.3/socket.io.min.js"></script>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    .tab-btn { margin-right: 5px; padding: 5px 10px; cursor: pointer; position: relative; }
-    .active { background: #007bff; color: white; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      margin: 20px;
+    }
+
+    h2 {
+      color: #333;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      margin-right: 8px;
+      background-color: #e2e6ea;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .tab-btn:hover {
+      background-color: #d6d8db;
+    }
+
+    .tab-btn.active {
+      background-color: #007bff;
+      color: white;
+    }
+
     .badge {
       padding: 3px 8px;
-      border-radius: 5px;
+      border-radius: 12px;
       font-size: 12px;
       margin-left: 8px;
     }
-    .online { background-color: #28a745; color: white; }
-    .offline { background-color: #dc3545; color: white; }
-    table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; font-size: 13px; }
-    button.kill-btn { padding: 2px 8px; background: #ff5555; color: white; border: none; border-radius: 3px; cursor: pointer; }
-    th { background-color: #f2f2f2; }
+
+    .online {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .offline {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      background: white;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    th, td {
+      border: 1px solid #dee2e6;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    th {
+      background-color: #f1f3f5;
+    }
+
+    tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    .kill-btn {
+      padding: 4px 10px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .kill-btn:hover {
+      background: #c82333;
+    }
+
+    #status-bar {
+      margin-top: 20px;
+      padding: 10px;
+      background: #e9ecef;
+      border-left: 5px solid #007bff;
+      font-size: 14px;
+      color: #333;
+    }
+
+    #search {
+      padding: 8px;
+      width: 300px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
-  <h2>Multi-Client Process Monitor</h2>
-
+  <h2>Process Monitor</h2>
+  <div id="notification" style="display:none; padding: 10px; margin-bottom: 10px; border-radius: 5px;"></div>
   <div id="tabs"></div>
   <br>
   <input type="text" id="search" placeholder="Search PID / Name..." onkeyup="filterProcesses()">
   <div id="process-table"></div>
+  <div id="status-bar">🧭 Ready.</div>
 
   <script>
     const socket = io();
@@ -35,7 +123,7 @@
     let clientStatuses = {};
 
     socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Connected to server');
     });
 
     socket.on('process_data', (data) => {
@@ -62,22 +150,52 @@
         document.getElementById(client_id).classList.add("active");
       }
 
-      if (client_id === currentClient) {
+    if (client_id === currentClient) {
+      const keyword = document.getElementById("search").value.trim();
+      if (keyword === "") {
         renderTable();
+      } else {
+        filterProcesses();  // giữ lại kết quả đang filter
       }
+    }
 
-      updateBadges(); // cập nhật trạng thái mỗi khi có dữ liệu mới
+      updateBadges();
     });
 
     socket.on('status_update', (statuses) => {
-      console.log("Received statuses:", statuses);
+      console.log("ℹ️ Received statuses:", statuses);
       clientStatuses = statuses;
       updateBadges();
     });
 
     socket.on('kill_result', (data) => {
-      alert(`Killed process ${data.pid} on ${data.client_id} - ${data.result}`);
+      const { kill_result } = data.kill_result || {};
+      const statusBar = document.getElementById('status-bar');
+      console.log("[INFO] Kill result:", data);
+      console.log("[INFO] Kill result:", kill_result);
+      if (kill_result) {
+        const { client_id, pid, result } = kill_result;
+        const message = `🛠️ Killed process ${pid} on ${client_id} - ${result.toUpperCase()}`;
+        statusBar.textContent = message;
+        statusBar.style.color = result === "success" ? "green" : "red";
+
+        console.log("[INFO] Kill result:", message);
+
+        // 🔁 Tự động xóa sau 10s giây
+        setTimeout(() => {
+          statusBar.textContent = "";
+        }, 10000);
+      } 
+      else 
+      {
+        statusBar.textContent = "⚠️ Received malformed kill result.";
+        statusBar.style.color = "orange";
+        setTimeout(() => {
+          statusBar.textContent = "";
+        }, 5000);
+      }
     });
+
 
     function updateBadges() {
       for (let client in clientStatuses) {
@@ -134,8 +252,9 @@
     }
 
     function killProcess(pid) {
-      if (confirm(`Are you sure to kill PID ${pid}?`)) {
+      if (confirm(`Are you sure you want to kill PID ${pid}?`)) {
         socket.emit('kill_process', { client_id: currentClient, pid: pid });
+        document.getElementById('status-bar').textContent = `⏳ Sending kill request for PID ${pid}...`;
       }
     }
 
@@ -175,6 +294,19 @@
 
       html += '</table>';
       tableDiv.innerHTML = html;
+    }
+
+    function showNotification(message, success = true) {
+      const box = document.getElementById("notification");
+      box.textContent = message;
+      box.style.display = "block";
+      box.style.backgroundColor = success ? "#d4edda" : "#f8d7da";
+      box.style.color = success ? "#155724" : "#721c24";
+      box.style.border = success ? "1px solid #c3e6cb" : "1px solid #f5c6cb";
+
+      setTimeout(() => {
+        box.style.display = "none";
+      }, 5000);  // 5 giây
     }
   </script>
 </body>

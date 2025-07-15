@@ -37,16 +37,43 @@ bool TCPClient::send_data(const std::string& data)
 }
 
 std::string TCPClient::receive_data() {
-    boost::asio::streambuf buf;
     try {
+        if (!is_connected()) {
+            std::cerr << "[WARN] Socket không còn kết nối\n";
+            return "";
+        }
+
+        // Nếu có dòng dư chưa xử lý → trả ngay
+        size_t newline = leftover_.find('\n');
+        if (newline != std::string::npos) {
+            std::string line = leftover_.substr(0, newline);
+            leftover_ = leftover_.substr(newline + 1);
+            std::cerr << "[WARN] Socket không còn kết nối" << line;
+            return line;
+        }
+
+        // Nếu không có dòng dư → đọc tiếp
+        boost::asio::streambuf buf;
         boost::asio::read_until(*socket_, buf, '\n');
         std::istream is(&buf);
-        std::string line;
-        std::getline(is, line);
-        return line;
-    } catch (...) {
-        return "";
+        std::string incoming;
+        std::getline(is, incoming);
+
+        // Append vào leftover để xử lý
+        leftover_ += incoming + "\n";
+
+        // Xử lý như lúc đầu
+        newline = leftover_.find('\n');
+        if (newline != std::string::npos) {
+            std::string line = leftover_.substr(0, newline);
+            leftover_ = leftover_.substr(newline + 1);
+            return line;
+        }
+
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] receive_data: " << e.what() << std::endl;
     }
+    return "";
 }
 
 

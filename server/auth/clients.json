@@ -1,6 +1,11 @@
 {
     "clients": {
-        "client1": "password1",
-        "client2": "password2"
+        "client1": "password",
+        "client2": "password",
+        "client3": "password",
+        "client4": "password",
+        "client5": "password",
+        "client6": "password",
+        "client7": "password"
     }
 }

@@ -23,6 +23,8 @@ private:
     std::string clientId_;
     std::string passWd_;
     std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
+
+    std::string leftover_;
 };
 
 #endif // TCP_CLIENT_H

@@ -7,8 +7,7 @@ import json
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
-
-
+server = None
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -28,19 +27,20 @@ def handle_process_data(process_data):
 
 @socketio.on('kill_process')
 def handle_kill_process(data):
-    client_id = data.get('client_id')
-    pid = data.get('pid')
-    if client_id and pid:
-        msg = json.dumps({
-            "type": "kill",
-            "client_id": client_id,
-            "pid": pid
-        })
-        server.send_to_client(client_id, msg)
+    client_id = data['client_id']
+    pid = data['pid']
+    command = {
+        "type": "kill",
+        "pid": pid
+    }
+    command_str = json.dumps(command) + '\n'
+    print("---------[DEBUG] Sending kill command to client", client_id, ":", repr(command_str))
+    server.send_command_to_client(client_id, command_str)
 
 if __name__ == "__main__":
+
     # Truyền callback cho TCPServer
-    server = TCPServer(on_update=handle_process_data)
+    server = TCPServer(socketio=socketio, on_update=handle_process_data)
     
     # Chạy server TCP trên luồng riêng
     threading.Thread(target=server.start, daemon=True).start()

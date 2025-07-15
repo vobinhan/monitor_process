@@ -9,7 +9,7 @@ import time
 
 class TCPServer:
     # Khởi tạo socket server, auth, và database
-    def __init__(self, on_update=None):
+    def __init__(self, socketio, on_update=None):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.auth = Authenticator()
@@ -21,6 +21,7 @@ class TCPServer:
         self.on_update = on_update  # lưu callback từ app.py
 
         self.client_sockets = {}  # client_socket -> client_id
+        self.socketio = socketio
         
     def start(self):
         self.server_socket.bind((HOST, PORT))
@@ -51,14 +52,23 @@ class TCPServer:
                 # Xử lý lệnh kill từ client
                 if data.startswith('{"kill_result":'):
                     result = json.loads(data)
-                    from app import socketio
-                    socketio.emit('kill_result', result)
+                    print(f"[DEBUG] Nhận kill_result từ client: {result}")
+                    self.socketio.emit('kill_result', {'kill_result': result})
                 else:
                     self._process_data(addr, data)
         except ConnectionResetError:
             log(f"Client {addr} disconnected abruptly", level="ERROR")
         finally:
             client_socket.close()
+
+    def send_command_to_client(self, client_id, command_str):
+        sock = self.client_sockets.get(client_id)
+        if sock:
+            try:
+                print(f"------[DEBUG] Sending kill command to client {client_id}: {command_str}")
+                sock.sendall((command_str + '\n').encode())
+            except Exception as e:
+                log(f"Lỗi gửi command: {e}", level="ERROR")
 
     def _authenticate(self, client_socket: socket.socket, data: str) -> bool:
         try:
@@ -69,7 +79,7 @@ class TCPServer:
                 # Kill
                 self.client_sockets[auth["client_id"]] = client_socket
 
-                client_socket.send(b"AUTH_SUCCESS")
+                client_socket.send(b"AUTH_SUCCESS\n")
                 print(f'AUTH_SUCCESS')
                 return True
         except json.JSONDecodeError:
