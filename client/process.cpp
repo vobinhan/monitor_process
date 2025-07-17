@@ -5,6 +5,14 @@
 #include <vector>
 #include <iomanip>
 
+/**
+ * @brief Escapes special characters in a string for safe JSON encoding.
+ * 
+ * This function replaces double quotes and backslashes with their escaped versions.
+ * 
+ * @param input The input string to escape.
+ * @return Escaped string suitable for JSON.
+ */
 std::string escape_json(const std::string& input) {
     std::ostringstream ss;
     for (char c : input) {
@@ -15,6 +23,14 @@ std::string escape_json(const std::string& input) {
     return ss.str();
 }
 
+/**
+ * @brief Collects and returns the current system processes in JSON format.
+ * 
+ * Uses the `ps` command to gather process information and formats it as a JSON array.
+ * Each process includes PID, UID, user, command, CPU usage, memory usage, state, start time, elapsed time, and CPU time.
+ * 
+ * @return A JSON string containing the list of processes.
+ */
 std::string ProcessCollector::get_processes() {
     FILE* pipe = popen("ps -eo pid,uid,user,comm,%cpu,%mem,state,lstart,etime,time,args --sort=-%cpu --no-headers", "r");
     if (!pipe) return "{}";
@@ -36,8 +52,7 @@ std::string ProcessCollector::get_processes() {
             >> lstart1 >> lstart2 >> lstart3 >> lstart4 >> lstart5 >> etime >> cputime;
 
 
-        // Chuyển state bắt đầu bằng R lên đầu bảng — server sẽ sắp xếp sau
-
+        // If not the first process, add a comma separator
         if (!first) json += ",";
         first = false;
 

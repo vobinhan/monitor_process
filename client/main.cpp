@@ -14,7 +14,7 @@ void log_debug(const std::string& message) {
 }
 
 int main(int argc, char* argv[]) {
-    // Parse tham số dòng lệnh (--client_id, --password, ...)
+    // Parse command-line arguments (--client_id, --password, ...)
     std::map<std::string, std::string> args;
     for (int i = 1; i < argc - 1; i += 2) {
         std::string key(argv[i]);
@@ -31,22 +31,22 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         if (!client.connect()) {
-            log_debug("Kết nối thất bại. Thử lại sau 5s...");
+            log_debug("Connection failed. Retrying in 5 seconds...");
             std::this_thread::sleep_for(std::chrono::seconds(5));
             continue;
         }
-        log_debug("Kết nối thành công đến server");
+        log_debug("Successfully connected to server");
 
-        // Gửi thông tin xác thực
+        // Send authentication information
         std::string auth_msg = R"({"client_id":")" + client_id + R"(","password":")" + password + "\"}";
         if (!client.send_data(auth_msg)) {
-            log_debug("Xác thực thất bại. Thử lại sau 5s...");
+            log_debug("Authentication failed. Retrying in 5 seconds...");
             std::this_thread::sleep_for(std::chrono::seconds(5));
             continue;
         }
-        log_debug("Xác thực thành công");
+        log_debug("Authentication successful");
 
-        // Thread nhận và xử lý lệnh kill từ server
+        // Thread to receive and handle kill commands from server
         std::thread([&client]() {
             while (true) {
                 std::string command = client.receive_data();
@@ -61,38 +61,38 @@ int main(int argc, char* argv[]) {
                 }
                 command.erase(std::remove(command.begin(), command.end(), ' '), command.end());
                 if (command.find("\"type\":\"kill\"") != std::string::npos) {
-                    log_debug("Nhận lệnh kill: " + command);
+                    log_debug("Received kill command: " + command);
                     std::smatch match;
                     std::regex rgx("\"pid\":\"(\\d+)\"");
                     if (std::regex_search(command, match, rgx)) {
                         std::string pid = match[1];
-                        log_debug("Đang thực hiện kill PID: " + pid);
+                        log_debug("Executing kill for PID: " + pid);
                         int ret = std::system(("kill -9 " + pid).c_str());
                         std::string result = (ret == 0) ? "success" : "fail";
 
                         std::string response = R"({"kill_result":{"client_id":")" + client.get_id() +
                             R"(","pid":")" + pid + R"(","result":")" + result + R"("}})";
-                        log_debug("Gửi kết quả kill về server: " + response);
+                        log_debug("Sending kill result to server: " + response);
                         client.send_data(response);
                     }
                 }
             }
         }).detach();
 
-        // Gửi dữ liệu process định kỳ
+        // Periodically send process data
         while (true) {
             std::string processes = ProcessCollector::get_processes();
             std::string full_json = R"({"client_id":")" + client_id + R"(",)" + processes.substr(1);
-            log_debug("send_data ...");
+            log_debug("Sending process data ...");
             if (!client.send_data(full_json)) {
-                log_debug("Gửi dữ liệu thất bại. Thử reconnect...");
-                break; // quay lại vòng ngoài để reconnect
+                log_debug("Failed to send process data. Trying to reconnect...");
+                break; // go back to outer loop to reconnect
             }
 
             std::this_thread::sleep_for(std::chrono::seconds(5));
         }
 
-        // Nếu rơi ra ngoài vòng lặp gửi dữ liệu, chờ 5s rồi reconnect
+        // If outside the data sending loop, wait 5 seconds then reconnect
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 
