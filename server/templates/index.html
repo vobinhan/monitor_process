@@ -114,7 +114,7 @@
   <br>
   <input type="text" id="search" placeholder="Search PID / Name..." onkeyup="filterProcesses()">
   <div id="process-table"></div>
-  <div id="status-bar">🧭 Ready.</div>
+  <div id="status-bar">Ready</div>
 
   <script>
     const socket = io();
@@ -155,7 +155,7 @@
       if (keyword === "") {
         renderTable();
       } else {
-        filterProcesses();  // giữ lại kết quả đang filter
+        filterProcesses();
       }
     }
 
@@ -166,7 +166,17 @@
       console.log("ℹ️ Received statuses:", statuses);
       clientStatuses = statuses;
       updateBadges();
+
+      const tableDiv = document.getElementById('process-table');
+      const status = clientStatuses[currentClient];
+
+      if (status === 'offline' || status === 'disconnected') {
+        tableDiv.innerHTML = `<div style="padding:10px; color: gray;">Client <strong>${currentClient}</strong> offline.</div>`;
+      } else {
+        renderTable();
+      }
     });
+
 
     socket.on('kill_result', (data) => {
       const { kill_result } = data.kill_result || {};
@@ -181,7 +191,6 @@
 
         console.log("[INFO] Kill result:", message);
 
-        // 🔁 Tự động xóa sau 10s giây
         setTimeout(() => {
           statusBar.textContent = "";
         }, 10000);
@@ -196,22 +205,45 @@
       }
     });
 
+    socket.on('disconnect', () => {
+      console.warn("Disconnect");
 
-    function updateBadges() {
-      for (let client in clientStatuses) {
-        const btn = document.getElementById(client);
-        if (btn) {
-          let oldBadge = btn.querySelector('.badge');
-          if (oldBadge) oldBadge.remove();
+      const statusBar = document.getElementById("status-bar");
+      statusBar.textContent = " Disconenct to server.";
+      statusBar.style.color = "gray";
 
-          const badge = document.createElement('span');
-          badge.className = 'badge ' + (clientStatuses[client] === 'online' ? 'online' : 'offline');
-          badge.textContent = clientStatuses[client] === 'online' ? '🟢 Online' : '🔴 Offline';
+      for (let clientId in clientStatuses) {
+        clientStatuses[clientId] = "disconnected";
+        clientData[clientId] = [];
+      }
+      renderTable();
+      updateBadges();
+      document.getElementById('process-table').innerHTML = "";
+    });
 
-          btn.appendChild(badge);
-        }
+  function updateBadges() {
+    for (let client in clientStatuses) {
+      const btn = document.getElementById(client);
+      if (btn) {
+        let oldBadge = btn.querySelector('.badge');
+        if (oldBadge) oldBadge.remove();
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (
+          clientStatuses[client] === 'online' ? 'online' :
+          clientStatuses[client] === 'offline' ? 'offline' : 'disconnected'
+        );
+        badge.textContent = (
+          clientStatuses[client] === 'online' ? '🟢 Online' :
+          clientStatuses[client] === 'offline' ? '🔴 Offline' :
+          '⚪ Disconnected'
+        );
+
+        btn.appendChild(badge);
       }
     }
+  }
+
 
     function renderTable() {
       const tableDiv = document.getElementById('process-table');

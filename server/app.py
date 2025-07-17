@@ -12,18 +12,26 @@ server = None
 def index():
     return render_template("index.html")
 
-# Callback nhận process_data từ TCPServer
+# Callback to receive process_data from TCPServer
 def handle_process_data(process_data):
     socketio.emit("process_data", {
         "client_id": process_data["client_id"],
         "processes": process_data["processes"]
     })
+
+    # Update status for all clients, both active and inactive
+    now = time.time()
     statuses = {
-        client_id: "online" if time.time() - last_seen < 10 else "offline"
+        client_id: "online" if now - last_seen < 10 else "offline"
         for client_id, last_seen in server.active_clients.items()
     }
-    socketio.emit("status_update", statuses)
 
+    # If client disconnects => remove process_data
+    for client_id, status in statuses.items():
+        if status == "offline":
+            server.process_db.db.pop(client_id, None)
+
+    socketio.emit("status_update", statuses)
 
 @socketio.on('kill_process')
 def handle_kill_process(data):
@@ -39,11 +47,12 @@ def handle_kill_process(data):
 
 if __name__ == "__main__":
 
-    # Truyền callback cho TCPServer
+    # Pass callback to TCPServer
     server = TCPServer(socketio=socketio, on_update=handle_process_data)
     
-    # Chạy server TCP trên luồng riêng
+    # Run TCP server in a separate thread
     threading.Thread(target=server.start, daemon=True).start()
+    threading.Thread(target=server.cleanup_inactive_clients, daemon=True).start()
 
     # Chạy web UI
     socketio.run(app, host="0.0.0.0", port=5000)

@@ -8,17 +8,17 @@ from utils.logger import log
 import time
 
 class TCPServer:
-    # Khởi tạo socket server, auth, và database
+    # Initialize socket server, authentication, and database
     def __init__(self, socketio, on_update=None):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.auth = Authenticator()
         self.process_db = ProcessDB()
         # web interface
-        self._buffer = {}  # Thêm dòng này để khởi tạo biến
-        self.active_clients = {}  # Thêm để theo dõi client đang kết nối
+        self._buffer = {}  # Initialize buffer variable
+        self.active_clients = {}  # Track currently connected clients
 
-        self.on_update = on_update  # lưu callback từ app.py
+        self.on_update = on_update  # Store callback from app.py
 
         self.client_sockets = {}  # client_socket -> client_id
         self.socketio = socketio
@@ -38,21 +38,21 @@ class TCPServer:
 
     def handle_client(self, client_socket: socket.socket, addr: tuple):
         try:
-            # Xác thực
+            # Authenticate
             log(f"Authenticating Client...")
             auth_data = client_socket.recv(BUFFER_SIZE).decode()
             if not self._authenticate(client_socket, auth_data):
                 return
 
-            # Nhận process data định kỳ
+            # Receive periodic process data
             while True:
                 data = client_socket.recv(BUFFER_SIZE).decode()
                 if not data:
                     break
-                # Xử lý lệnh kill từ client
+                # Handle kill command result from client
                 if data.startswith('{"kill_result":'):
                     result = json.loads(data)
-                    print(f"[DEBUG] Nhận kill_result từ client: {result}")
+                    print(f"[DEBUG] Received kill_result from client: {result}")
                     self.socketio.emit('kill_result', {'kill_result': result})
                 else:
                     self._process_data(addr, data)
@@ -68,7 +68,7 @@ class TCPServer:
                 print(f"------[DEBUG] Sending kill command to client {client_id}: {command_str}")
                 sock.sendall((command_str + '\n').encode())
             except Exception as e:
-                log(f"Lỗi gửi command: {e}", level="ERROR")
+                log(f"Error sending command: {e}", level="ERROR")
 
     def _authenticate(self, client_socket: socket.socket, data: str) -> bool:
         try:
@@ -100,17 +100,37 @@ class TCPServer:
                 log(f"Updated processes from {addr}")
                 self.active_clients[process_data["client_id"]] = time.time()
                 print(self.active_clients[process_data["client_id"]])
-                # Gọi callback về app.py nếu có
+
+                # Call callback to app.py if available
                 if self.on_update:
                     self.on_update(process_data)
             except json.JSONDecodeError as e:
                 log(f"Invalid JSON data: {repr(line)} -- Error: {e}", level="WARNING")
 
+    def cleanup_inactive_clients(self):
+        import time
+        while True:
+            now = time.time()
 
-def send_to_client(self, client_id, message: str):
-    sock = self.client_sockets.get(client_id)
-    if sock:
-        try:
-            sock.sendall((message + '\n').encode())
-        except Exception as e:
-            log(f"Failed to send to {client_id}: {e}", level="ERROR")
+            # Dọn các client không gửi data quá 10s
+            inactive_clients = [
+                cid for cid, ts in self.active_clients.items()
+                if now - ts > 10
+            ]
+            for cid in inactive_clients:
+                print(f"[CLEANUP] Client {cid} marked as offline")
+                if cid in self.active_clients:
+                    del self.active_clients[cid]
+                if cid in self.process_db.db:
+                    del self.process_db.db[cid]
+
+            # Gửi trạng thái của TẤT CẢ client từng kết nối
+            all_clients = set(list(self.process_db.db.keys()) + list(self.client_sockets.keys()))
+
+            statuses = {
+                cid: "online" if cid in self.active_clients else "offline"
+                for cid in all_clients
+            }
+
+            self.socketio.emit("status_update", statuses)
+            time.sleep(5)
