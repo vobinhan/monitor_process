@@ -17,12 +17,12 @@ $ sudo apt install build-essential cmake -y
 ## Tutorial Run
 ### Server
 $ cd server \
-$ python app.py
+$ python app.py 
 
 ### Client
 Mỗi client, chạy dòng lệnh \
 $ cd client/build \
-$ ./client --client_id <id> --password password --server_host <host server> --server_port 8000
+$ ./client --client_id<id> --password password --server_host <host server> --server_port 8000
 
 -----
 SOURCE BUILD STEP (can if): \
@@ -31,6 +31,15 @@ $ mkdir -p build \
 $ cd build \
 $ cmake .. \
 $ make
+
+
+NOTE:  \
+Các app_1,app_2 ... \
+=> Chạy ./app_1 ... Nếu cần chạy để mô phỏng tiến trình. \
+Các app này mô phỏng 1 process đang chạy. Để phục vụ cho test kill tiến trình \
+
+Search tên app trên thanh tìm kiếm để kill tiến trình
+
 
 ## System Architecture
 ```mermaid
