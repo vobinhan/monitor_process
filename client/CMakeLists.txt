@@ -12,4 +12,4 @@ add_executable(client
     process.cpp
 )
 
-target_link_libraries(client PRIVATE Boost::system)
+target_link_libraries(client PRIVATE Boost::system pthread)
