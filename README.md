@@ -9,7 +9,7 @@ $ source venv/bin/activate \
 $ pip install flask flask-socketio eventlet
 
 ### Client
-CMake version ≥ 3.10
+CMake version ≥ 3.10 \
 CMD: \
 $ sudo apt update \
 $ sudo apt install build-essential cmake -y
@@ -22,18 +22,17 @@ $ python app.py
 ### Client
 Mỗi client, chạy dòng lệnh \
 $ cd client/build \
-$ ./client --client_id<id> --password password --server_host <host server> --server_port 8000
+$ ./client --client_id client_id(1-10) --password password --server_host <host server> --server_port 8000
 
 -----
-SOURCE BUILD STEP (can if): \
+NOTE:  \
+Source build step client (can if): \
 $ cd client \
 $ mkdir -p build \
 $ cd build \
 $ cmake .. \
 $ make
 
-
-NOTE:  \
 Các app_1,app_2 ... \
 => Chạy ./app_1 ... Nếu cần chạy để mô phỏng tiến trình. \
 Các app này mô phỏng 1 process đang chạy. Để phục vụ cho test kill tiến trình \
