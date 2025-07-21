@@ -1,6 +1,5 @@
 # Process Monitoring System
 ## Environment
-Python 3.10+ \
 OS: Ubuntu 24.04
 
 ### Server
@@ -12,8 +11,7 @@ $ pip install flask flask-socketio eventlet
 CMake version ≥ 3.10 \
 CMD: \
 $ sudo apt update \
-$ sudo apt install build-essential cmake -y
-$ sudo apt install libboost-all-dev
+$ sudo apt install build-essential cmake libboost-all-dev -y
 
 ## Tutorial Run
 ### Server
@@ -33,6 +31,8 @@ $ mkdir -p build \
 $ cd build \
 $ cmake .. \
 $ make
+
+Nếu build lại client cần rf -rm build, sau đó mkdir build và cd build, chạy lệnh cmake ..
 
 Các app_1,app_2 ... \
 => Chạy ./app_1 ... Nếu cần chạy để mô phỏng tiến trình. \
