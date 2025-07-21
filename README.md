@@ -22,7 +22,7 @@ $ python app.py
 ### Client
 Mỗi client, chạy dòng lệnh \
 $ cd client/build \
-$ ./client --client_id client_id(1-10) --password password --server_host <host server> --server_port 8000
+$ ./client --client_id client(1-10) --password password --server_host <host server> --server_port 8000
 
 -----
 NOTE:  \
