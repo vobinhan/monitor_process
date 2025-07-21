@@ -13,6 +13,7 @@ CMake version ≥ 3.10 \
 CMD: \
 $ sudo apt update \
 $ sudo apt install build-essential cmake -y
+$ sudo apt install libboost-all-dev
 
 ## Tutorial Run
 ### Server
