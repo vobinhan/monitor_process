@@ -163,19 +163,27 @@
     });
 
     socket.on('status_update', (statuses) => {
-      console.log("ℹ️ Received statuses:", statuses);
       clientStatuses = statuses;
       updateBadges();
 
-      const tableDiv = document.getElementById('process-table');
       const status = clientStatuses[currentClient];
 
       if (status === 'offline' || status === 'disconnected') {
-        tableDiv.innerHTML = `<div style="padding:10px; color: gray;">Client <strong>${currentClient}</strong> offline.</div>`;
+        // Xóa dữ liệu hiển thị
+        document.getElementById('process-table').innerHTML = `
+          <div style="padding:10px; color: gray;">
+            Client <strong>${currentClient}</strong> is offline.
+          </div>
+        `;
+
+        // 🔥 Xóa dữ liệu process đã lưu
+        delete processData[currentClient];
       } else {
+        // Chỉ render lại khi client còn online
         renderTable();
       }
     });
+
 
 
     socket.on('kill_result', (data) => {

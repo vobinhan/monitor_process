@@ -37,29 +37,80 @@ class TCPServer:
             ).start()
 
     def handle_client(self, client_socket: socket.socket, addr: tuple):
+        client_id = None  # Biến tạm để dùng khi client disconnect
         try:
             # Authenticate
             log(f"Authenticating Client...")
             auth_data = client_socket.recv(BUFFER_SIZE).decode()
-            if not self._authenticate(client_socket, auth_data):
+            auth = json.loads(auth_data)
+            client_id = auth.get("client_id")
+            password = auth.get("password")
+
+            if not client_id or not password:
+                client_socket.send(b"AUTH_FAIL\n")
                 return
 
-            # Receive periodic process data
+            # Nếu client_id đang online → từ chối kết nối mới
+            now = time.time()
+            if client_id in self.client_sockets and now - self.active_clients.get(client_id, 0) < 10:
+                log(f"[WARNING] client_id '{client_id}' already connected and active → rejecting new connection.")
+                try:
+                    existing_socket = self.client_sockets[client_id]
+                    warning = {"type": "warning", "message": "Another client attempted to connect with your client_id"}
+                    existing_socket.sendall((json.dumps(warning) + "\n").encode())
+                except:
+                    pass
+                client_socket.send(b"AUTH_FAIL_DUPLICATE_ID\n")
+                return
+
+            if not self.auth.validate(client_id, password):
+                client_socket.send(b"AUTH_FAIL\n")
+                return
+
+            self.client_sockets[client_id] = client_socket
+            self.active_clients[client_id] = time.time()
+            client_socket.send(b"AUTH_SUCCESS\n")
+            log(f"[AUTH] Client '{client_id}' authenticated successfully.")
+
+            # Receive process data
             while True:
                 data = client_socket.recv(BUFFER_SIZE).decode()
                 if not data:
                     break
-                # Handle kill command result from client
+
                 if data.startswith('{"kill_result":'):
                     result = json.loads(data)
-                    print(f"[DEBUG] Received kill_result from client: {result}")
                     self.socketio.emit('kill_result', {'kill_result': result})
                 else:
                     self._process_data(addr, data)
-        except ConnectionResetError:
-            log(f"Client {addr} disconnected abruptly", level="ERROR")
+
+        except (ConnectionResetError, json.JSONDecodeError) as e:
+            log(f"[ERROR] Client error: {e}")
+
         finally:
+            # 🔴 Xử lý khi client disconnect (real-time)
+            log(f"[DISCONNECT] Client '{client_id}' disconnected")
+
+            if client_id:
+                self.client_sockets.pop(client_id, None)
+                self.active_clients.pop(client_id, None)
+                self.process_db.db.pop(client_id, None)  # ✅ Xóa process ngay lập tức
+
+                # ✅ Emit status và xóa UI realtime
+                self.socketio.emit("process_data", {
+                    "client_id": client_id,
+                    "processes": []  # Gửi danh sách trống để UI tự xóa
+                })
+
+                self.socketio.emit("status_update", {
+                    client_id: "offline"
+                })
+
+                log(f"[STATUS] {client_id} marked as offline and process data cleared in real-time.")
+
+
             client_socket.close()
+
 
     def send_command_to_client(self, client_id, command_str):
         sock = self.client_sockets.get(client_id)
@@ -73,19 +124,44 @@ class TCPServer:
     def _authenticate(self, client_socket: socket.socket, data: str) -> bool:
         try:
             auth = json.loads(data)
-            
-            if self.auth.validate(auth["client_id"], auth["password"]):
+            client_id = auth.get("client_id")
+            password = auth.get("password")
 
-                # Kill
-                self.client_sockets[auth["client_id"]] = client_socket
+            if not client_id or not password:
+                client_socket.send(b"AUTH_FAIL\n")
+                return False
 
+            # ✅ Nếu client_id đang online → từ chối kết nối mới
+            now = time.time()
+            last_seen = self.active_clients.get(client_id)
+
+            if client_id in self.client_sockets and last_seen and (now - last_seen < 10):
+                log(f"[WARNING] client_id '{client_id}' already connected and active → rejecting new connection.")
+                
+                # Gửi cảnh báo cho client đang online
+                try:
+                    existing_socket = self.client_sockets[client_id]
+                    notify = {"type": "warning", "message": "Another client attempted to connect with your client_id"}
+                    existing_socket.sendall((json.dumps(notify) + "\n").encode())
+                except Exception as e:
+                    log(f"[ERROR] Failed to notify existing client '{client_id}': {e}", level="ERROR")
+
+                client_socket.send(b"AUTH_FAIL_DUPLICATE_ID\n")
+                return False
+
+            # ✅ Cho phép nếu xác thực đúng
+            if self.auth.validate(client_id, password):
+                self.client_sockets[client_id] = client_socket
                 client_socket.send(b"AUTH_SUCCESS\n")
-                print(f'AUTH_SUCCESS')
+                log(f"[AUTH] Client '{client_id}' authenticated successfully.")
                 return True
+
         except json.JSONDecodeError:
             pass
-        client_socket.send(b"AUTH_FAIL")
+
+        client_socket.send(b"AUTH_FAIL\n")
         return False
+
     
     def _process_data(self, addr: tuple, data: str):
         self._buffer.setdefault(addr, "")

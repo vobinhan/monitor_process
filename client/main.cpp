@@ -45,7 +45,16 @@ int main(int argc, char* argv[]) {
             continue;
         }
         log_debug("Authentication successful");
-
+        std::string auth_resp = client.receive_data();
+        if (auth_resp == "AUTH_FAIL_DUPLICATE_ID") {
+            log_debug("Duplicate client_id already connected. Exiting.");
+            return 1;
+        }
+        if (auth_resp != "AUTH_SUCCESS") {
+            log_debug("Authentication failed. Retrying in 5 seconds...");
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            continue;
+        }
         // Thread to receive and handle kill commands from server
         std::thread([&client]() {
             while (true) {
@@ -74,6 +83,14 @@ int main(int argc, char* argv[]) {
                             R"(","pid":")" + pid + R"(","result":")" + result + R"("}})";
                         log_debug("Sending kill result to server: " + response);
                         client.send_data(response);
+                    }
+                }
+                else if (command.find("\"type\":\"warning\"") != std::string::npos) {
+                    std::smatch match;
+                    std::regex rgx("\"message\":\"([^\"]+)\"");
+                    if (std::regex_search(command, match, rgx)) {
+                        std::string warning_msg = match[1];
+                        log_debug("⚠️ Server warning: " + warning_msg);
                     }
                 }
             }

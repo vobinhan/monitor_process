@@ -14,22 +14,27 @@ def index():
 
 # Callback to receive process_data from TCPServer
 def handle_process_data(process_data):
+    client_id = process_data["client_id"]
+    processes = process_data["processes"]
+
+    # Gửi process_data cho client_id tương ứng
     socketio.emit("process_data", {
-        "client_id": process_data["client_id"],
-        "processes": process_data["processes"]
+        "client_id": client_id,
+        "processes": processes
     })
 
-    # Update status for all clients, both active and inactive
+    # ✅ Cập nhật last_seen của client này
     now = time.time()
-    statuses = {
-        client_id: "online" if now - last_seen < 10 else "offline"
-        for client_id, last_seen in server.active_clients.items()
-    }
+    server.active_clients[client_id] = now
 
-    # If client disconnects => remove process_data
-    for client_id, status in statuses.items():
-        if status == "offline":
-            server.process_db.db.pop(client_id, None)
+    # ✅ Cập nhật process db
+    server.process_db.update(client_id, processes)
+
+    # ✅ Emit status update NGAY LẬP TỨC sau khi nhận process
+    statuses = {
+        cid: "online" if cid in server.active_clients else "offline"
+        for cid in set(server.client_sockets.keys()).union(server.process_db.db.keys())
+    }
 
     socketio.emit("status_update", statuses)
 
