@@ -121,17 +121,21 @@
     let clientData = {};
     let currentClient = null;
     let clientStatuses = {};
+    let lastSearchKeyword = "";
 
     socket.on('connect', () => {
-      console.log('✅ Connected to server');
+      console.log('Connected to server');
     });
 
     socket.on('process_data', (data) => {
       const client_id = data.client_id;
-      clientData[client_id] = data.processes;
 
-      if (!document.getElementById(client_id)) {
-        const btn = document.createElement('button');
+      clientData[client_id] = data.processes;
+      let btn = document.getElementById(client_id);
+      const isNewClient = !btn;
+
+      if (isNewClient) {
+        btn = document.createElement('button');
         btn.textContent = client_id;
         btn.className = 'tab-btn';
         btn.id = client_id;
@@ -139,27 +143,23 @@
           document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentClient = client_id;
-          renderTable();
+          isSearching = false;
+          lastSearchKeyword = "";
+          renderFilteredTable();
         };
         document.getElementById('tabs').appendChild(btn);
-        updateBadges();
       }
-
-      if (!currentClient) {
-        currentClient = client_id;
-        document.getElementById(client_id).classList.add("active");
-      }
-
-    if (client_id === currentClient) {
-      const keyword = document.getElementById("search").value.trim();
-      if (keyword === "") {
-        renderTable();
-      } else {
-        filterProcesses();
-      }
-    }
-
       updateBadges();
+
+      if (currentClient && client_id === currentClient) {
+        renderFilteredTable(lastSearchKeyword);
+      }
+      if (isNewClient) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentClient = client_id;
+        isSearching = false;
+      } 
     });
 
     socket.on('status_update', (statuses) => {
@@ -169,17 +169,14 @@
       const status = clientStatuses[currentClient];
 
       if (status === 'offline' || status === 'disconnected') {
-        // Xóa dữ liệu hiển thị
         document.getElementById('process-table').innerHTML = `
           <div style="padding:10px; color: gray;">
             Client <strong>${currentClient}</strong> is offline.
           </div>
         `;
-
-        // 🔥 Xóa dữ liệu process đã lưu
-        delete processData[currentClient];
-      } else {
-        // Chỉ render lại khi client còn online
+        delete clientData[currentClient];
+        isSearching = false;
+      } else if (!isSearching) {
         renderTable();
       }
     });
@@ -193,7 +190,7 @@
       console.log("[INFO] Kill result:", kill_result);
       if (kill_result) {
         const { client_id, pid, result } = kill_result;
-        const message = `🛠️ Killed process ${pid} on ${client_id} - ${result.toUpperCase()}`;
+        const message = `Killed process ${pid} on ${client_id} - ${result.toUpperCase()}`;
         statusBar.textContent = message;
         statusBar.style.color = result === "success" ? "green" : "red";
 
@@ -205,7 +202,7 @@
       } 
       else 
       {
-        statusBar.textContent = "⚠️ Received malformed kill result.";
+        statusBar.textContent = "Received malformed kill result.";
         statusBar.style.color = "orange";
         setTimeout(() => {
           statusBar.textContent = "";
@@ -294,12 +291,13 @@
     function killProcess(pid) {
       if (confirm(`Are you sure you want to kill PID ${pid}?`)) {
         socket.emit('kill_process', { client_id: currentClient, pid: pid });
-        document.getElementById('status-bar').textContent = `⏳ Sending kill request for PID ${pid}...`;
+        // Hiển thị thông báo tạm thời
       }
     }
 
     function filterProcesses() {
-      const keyword = document.getElementById("search").value.toLowerCase();
+      const keyword = document.getElementById("search").value.trim().toLowerCase();
+      isSearching = keyword !== "";
       const processes = clientData[currentClient] || [];
       const tableDiv = document.getElementById('process-table');
 
@@ -334,6 +332,46 @@
 
       html += '</table>';
       tableDiv.innerHTML = html;
+      renderFilteredTable(lastSearchKeyword);
+    }
+
+    function renderFilteredTable(keyword = "") {
+      const processes = clientData[currentClient] || [];
+      const tableDiv = document.getElementById('process-table');
+
+      let html = `
+        <table>
+          <tr>
+            <th>PID</th><th>UID</th><th>User</th><th>Name</th><th>CPU (%)</th><th>Mem (%)</th><th>State</th>
+            <th>Start Time</th><th>Elapsed</th><th>CPU Time</th><th>Action</th>
+          </tr>
+      `;
+
+      const filteredProcesses = keyword 
+        ? processes.filter(p => 
+            p.pid.includes(keyword) || 
+            (p.name && p.name.toLowerCase().includes(keyword))
+          )
+        : processes;
+
+      for (let p of filteredProcesses) {
+        html += `<tr>
+          <td>${p.pid}</td>
+          <td>${p.uid || ""}</td>
+          <td>${p.user || ""}</td>
+          <td>${p.name}</td>
+          <td>${p.cpu}</td>
+          <td>${p.memory_mb}</td>
+          <td>${p.state}</td>
+          <td>${p.start_time || ""}</td>
+          <td>${p.elapsed || ""}</td>
+          <td>${p.cpu_time || ""}</td>
+          <td><button class="kill-btn" onclick="killProcess('${p.pid}')">Kill</button></td>
+        </tr>`;
+      }
+
+      html += '</table>';
+      tableDiv.innerHTML = html;
     }
 
     function showNotification(message, success = true) {
@@ -346,8 +384,14 @@
 
       setTimeout(() => {
         box.style.display = "none";
-      }, 5000);  // 5 giây
+      }, 5000);
     }
+
+    document.getElementById('search').addEventListener('input', function() {
+      lastSearchKeyword = this.value.trim().toLowerCase();
+      isSearching = lastSearchKeyword !== "";
+      renderFilteredTable(lastSearchKeyword);
+    });
   </script>
 </body>
 </html>

@@ -35,7 +35,6 @@ int main(int argc, char* argv[]) {
             std::this_thread::sleep_for(std::chrono::seconds(5));
             continue;
         }
-        log_debug("Successfully connected to server");
 
         // Send authentication information
         std::string auth_msg = R"({"client_id":")" + client_id + R"(","password":")" + password + "\"}";
@@ -46,12 +45,19 @@ int main(int argc, char* argv[]) {
         }
         log_debug("Authentication successful");
         std::string auth_resp = client.receive_data();
+        log_debug("Successfully connected to server");
+        if (auth_resp == "AUTH_SUCCESS") {
+            log_debug("Successfully connected to server.");
+            std::cerr << "[LOG] Successfully connected to server\n";
+        }
         if (auth_resp == "AUTH_FAIL_DUPLICATE_ID") {
             log_debug("Duplicate client_id already connected. Exiting.");
+            std::cerr << "[WARNING] This client_id is already in use by another client.\n";
             return 1;
         }
         if (auth_resp != "AUTH_SUCCESS") {
             log_debug("Authentication failed. Retrying in 5 seconds...");
+            std::cerr << "[ERROR] Authentication failed. Check client_id/password.\n";
             std::this_thread::sleep_for(std::chrono::seconds(5));
             continue;
         }

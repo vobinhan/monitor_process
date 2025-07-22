@@ -12,6 +12,8 @@ public:
     bool connect();
     bool send_data(const std::string& data);
     bool is_connected() const;
+    bool error_logged_ = false;
+
     std::string receive_data();
     std::string get_id() const { return clientId_;}
 private:

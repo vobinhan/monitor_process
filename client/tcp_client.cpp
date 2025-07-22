@@ -29,11 +29,10 @@ bool TCPClient::connect()
         tcp::resolver resolver(io_context);
         boost::asio::connect(socket, resolver.resolve(host_, std::to_string(port_)));
         socket_ = std::make_unique<tcp::socket>(std::move(socket));
-        std::cerr << "connected" <<  std::endl;
+        error_logged_ = false;
         return true;
     } catch (const std::exception& e) 
     {
-        std::cerr << "Connection error: " << e.what() << std::endl;
         return false;
     }
 }
@@ -50,7 +49,6 @@ bool TCPClient::send_data(const std::string& data)
         boost::asio::write(*socket_, boost::asio::buffer(data + "\n"));
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Send data error: " << e.what() << std::endl;
         return false;
     }
 }
@@ -58,30 +56,28 @@ bool TCPClient::send_data(const std::string& data)
 std::string TCPClient::receive_data() {
     try {
         if (!is_connected()) {
-            std::cerr << "[WARN] Socket is not connected\n";
+            if (!error_logged_) {
+                std::cerr << "[WARN] Socket is not connected\n";
+                error_logged_ = true;
+            }
             return "";
         }
 
-        // If there is leftover data, return it immediately
         size_t newline = leftover_.find('\n');
         if (newline != std::string::npos) {
             std::string line = leftover_.substr(0, newline);
             leftover_ = leftover_.substr(newline + 1);
-            std::cerr << "[WARN] Socket is not connected" << line;
             return line;
         }
 
-        // Nếu không có dòng dư → đọc tiếp
         boost::asio::streambuf buf;
         boost::asio::read_until(*socket_, buf, '\n');
         std::istream is(&buf);
         std::string incoming;
         std::getline(is, incoming);
 
-        // Append vào leftover để xử lý
         leftover_ += incoming + "\n";
 
-        // Xử lý như lúc đầu
         newline = leftover_.find('\n');
         if (newline != std::string::npos) {
             std::string line = leftover_.substr(0, newline);
@@ -90,10 +86,14 @@ std::string TCPClient::receive_data() {
         }
 
     } catch (const std::exception& e) {
-        std::cerr << "[ERROR] receive_data: " << e.what() << std::endl;
+        if (!error_logged_) {
+            std::cerr << "[ERROR] receive_data: " << e.what() << std::endl;
+            error_logged_ = true;
+        }
     }
     return "";
 }
+
 
 /**
  * @brief Checks if the socket is currently connected.
